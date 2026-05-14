@@ -5,8 +5,8 @@ if (!isset($_SESSION['admin_id']) || $_SESSION['admin_role'] !== 'super_admin') 
     die;
 }
 include 'includes/dbconnection.php';
-include 'includes/header.php'; 
-include 'includes/navbar.php'; 
+include 'includes/header.php';
+include 'includes/sidebar.php';
 
 // Get filters
 $status_filter = isset($_GET['status']) ? $_GET['status'] : 'all';
@@ -51,8 +51,16 @@ function getStatusDisplay($status) {
 }
 ?>
 
-<main class="flex-grow p-6 md:p-10 bg-slate-50">
-    <div class="max-w-7xl mx-auto">
+<div class="flex flex-col flex-1 min-h-screen min-w-0" id="main-content">
+<header class="bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between sticky top-0 z-40 shadow-sm">
+    <div>
+        <h1 class="text-xl font-bold text-slate-800">Admin Leave History</h1>
+        <p class="text-xs text-slate-400 font-medium">Approved and HR-recommended leave records</p>
+    </div>
+    <span class="text-xs font-semibold text-slate-400"><?php echo date('l, d M Y'); ?></span>
+</header>
+<main class="flex-1 p-6 lg:p-8 overflow-y-auto bg-slate-100">
+    <div class="max-w-full">
         <!-- Header Section -->
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
             <div>
@@ -174,5 +182,6 @@ function getStatusDisplay($status) {
         </div>
     </div>
 </main>
+</div>
 
 <?php include 'includes/footer.php'; ?>
