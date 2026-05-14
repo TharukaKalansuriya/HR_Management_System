@@ -1,0 +1,26 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Mac/Windows system files
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+
+# Uploads directory (Ignore uploaded profile pictures/documents to prevent git conflicts)
+uploads/*
+!uploads/.gitkeep
+
+# IDEs and Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Composer
+vendor/
