@@ -54,6 +54,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Please fill in all required fields (First Name, Last Name, Email, Department, Designation).';
     } else {
         try {
+            // ── Generate dummy portal password ────────────────────────────────
+            // Format: Hrms@ + first 4 chars of first_name (ucfirst) + 4-digit suffix
+            $namePart  = strtoupper(substr($first_name, 0, 1)) . strtolower(substr($first_name, 1, 3));
+            $phoneSuffix = !empty($phone) ? substr(preg_replace('/\D/', '', $phone), -4) : '1234';
+            if (strlen($phoneSuffix) < 4) { $phoneSuffix = str_pad($phoneSuffix, 4, '0', STR_PAD_LEFT); }
+            $plain_password = 'Hrms@' . $namePart . $phoneSuffix;
+            $password_hash  = password_hash($plain_password, PASSWORD_BCRYPT);
+            // ─────────────────────────────────────────────────────────────────
+
             $sql = "INSERT INTO employees (
                 first_name, last_name, full_name, nic_no, date_of_birth, gender, marital_status, address,
                 email, phone, phone_secondary,
@@ -61,7 +70,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 epf_number, etf_number, tin_number,
                 bank_acc_no, bank_name, bank_branch, bank_acc_owner,
                 employment_type, designation, position, department, assigned_shift_id, grade,
-                date_joined, probation_period, confirmation_date, branch_location, status
+                date_joined, probation_period, confirmation_date, branch_location, status,
+                password_hash
             ) VALUES (
                 ?, ?, ?, ?, ?, ?, ?, ?,
                 ?, ?, ?,
@@ -69,7 +79,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ?, ?, ?,
                 ?, ?, ?, ?,
                 ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?
+                ?, ?, ?, ?, ?,
+                ?
             )";
             $stmt = $pdo->prepare($sql);
             $stmt->execute([
@@ -79,9 +90,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $epf_number, $etf_number, $tin_number,
                 $bank_acc_no, $bank_name, $bank_branch, $bank_acc_owner,
                 $employment_type, $designation, $position, $department, $assigned_shift_id, $grade,
-                $date_joined, $probation_period, $confirmation_date, $branch_location, $status
+                $date_joined, $probation_period, $confirmation_date, $branch_location, $status,
+                $password_hash
             ]);
-            header("Location: employees.php?msg=added");
+            // Pass the plain password (base64-encoded) so the success page can display it
+            header("Location: employees.php?msg=added&pw=" . base64_encode($plain_password) . "&em=" . urlencode($email));
             exit;
         } catch (PDOException $e) {
             if ($e->getCode() == 23000) {

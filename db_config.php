@@ -205,19 +205,19 @@ try {
 
     // 11.4. Create leaves table
     $pdo->exec("CREATE TABLE IF NOT EXISTS leaves (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        employee_id INT NOT NULL,
-        leave_type ENUM('Annual','Sick','Casual','Maternity','Paternity','No Pay','Other') DEFAULT 'Annual',
+        id INT(11) AUTO_INCREMENT PRIMARY KEY,
+        user_id INT(11) NOT NULL,
+        leave_type VARCHAR(50) NOT NULL,
         start_date DATE NOT NULL,
         end_date DATE NOT NULL,
-        days_taken INT NOT NULL DEFAULT 1,
-        status ENUM('Pending','Approved','Rejected') DEFAULT 'Pending',
-        reason TEXT DEFAULT NULL,
-        approved_by INT DEFAULT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
-    )");
+        days INT(11) NOT NULL,
+        reason TEXT NOT NULL,
+        document_path VARCHAR(255) DEFAULT NULL,
+        status ENUM('Pending','HR_Approved','Approved','Rejected') DEFAULT 'Pending',
+        admin_remark TEXT DEFAULT NULL,
+        created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES employees(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
 
     // 11.5. Create employee_documents table
     $pdo->exec("CREATE TABLE IF NOT EXISTS employee_documents (

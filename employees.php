@@ -18,12 +18,27 @@ include 'sidebar.php';
     <div class="flex-1 overflow-x-hidden overflow-y-auto p-8 custom-scrollbar">
         
         <?php if(isset($_GET['msg']) && $_GET['msg'] == 'added'): ?>
-        <div class="bg-emerald-50 border-l-4 border-emerald-500 text-emerald-700 p-4 mb-6 rounded-r-xl shadow-sm flex items-center justify-between" role="alert">
-            <div class="flex items-center">
-                <i class="fa-solid fa-circle-check text-emerald-500 mr-3 text-lg"></i>
-                <div>
-                    <p class="font-bold text-sm">Success!</p>
-                    <p class="text-xs mt-0.5">New employee has been successfully registered with full profile configuration.</p>
+        <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 p-5 mb-6 rounded-2xl shadow-sm" role="alert">
+            <div class="flex items-start gap-3">
+                <i class="fa-solid fa-circle-check text-emerald-500 text-xl mt-0.5 flex-shrink-0"></i>
+                <div class="flex-1">
+                    <p class="font-bold text-sm">Employee Registered Successfully!</p>
+                    <p class="text-xs text-emerald-700 mt-0.5">A portal account has been automatically created. Share the credentials below with the employee.</p>
+                    <?php if (!empty($_GET['pw']) && !empty($_GET['em'])): ?>
+                    <div class="mt-3 bg-white border border-emerald-200 rounded-xl p-4 flex flex-wrap gap-4">
+                        <div>
+                            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Portal Email</p>
+                            <code class="text-sm font-mono font-bold text-gray-800 bg-gray-100 px-2 py-1 rounded-lg"><?php echo htmlspecialchars(urldecode($_GET['em'])); ?></code>
+                        </div>
+                        <div>
+                            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Default Password</p>
+                            <code class="text-sm font-mono font-bold text-emerald-700 bg-emerald-100 px-2 py-1 rounded-lg"><?php echo htmlspecialchars(base64_decode($_GET['pw'])); ?></code>
+                        </div>
+                        <div class="self-end">
+                            <span class="text-xs text-amber-600 font-medium"><i class="fa-solid fa-triangle-exclamation mr-1"></i>Employee must change this password after first login.</span>
+                        </div>
+                    </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>

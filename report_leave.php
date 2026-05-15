@@ -26,7 +26,7 @@ $leaveData = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Also check formal leaves table
 $lStmt = $pdo->prepare("SELECT l.*, e.first_name, e.last_name, e.department 
-    FROM leaves l JOIN employees e ON e.id=l.employee_id 
+    FROM leaves l JOIN employees e ON e.id=l.user_id 
     WHERE ((MONTH(l.start_date)=? AND YEAR(l.start_date)=?) OR (MONTH(l.end_date)=? AND YEAR(l.end_date)=?)) $deptFilter
     ORDER BY l.start_date DESC");
 $lParams = [$filterMonth, $filterYear, $filterMonth, $filterYear];
@@ -50,7 +50,7 @@ arsort($deptLeave);
 $typeBreakdown = [];
 foreach ($formalLeaves as $fl) {
     $t = $fl['leave_type'];
-    $typeBreakdown[$t] = ($typeBreakdown[$t] ?? 0) + $fl['days_taken'];
+    $typeBreakdown[$t] = ($typeBreakdown[$t] ?? 0) + $fl['days'];
 }
 
 $departments = $pdo->query("SELECT DISTINCT department FROM employees WHERE department!='' ORDER BY department")->fetchAll(PDO::FETCH_COLUMN);

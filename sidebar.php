@@ -22,7 +22,7 @@
             <a href="attendance.php" class="sidebar-item flex items-center px-6 py-3 text-sm font-medium <?php echo (strpos($current_page, 'attendance') !== false) ? 'active' : 'text-gray-300'; ?>">
                 <i class="fa-solid fa-clock w-6 text-center mr-3"></i> Attendance
             </a>
-            <a href="#" class="sidebar-item flex items-center px-6 py-3 text-sm font-medium text-gray-300">
+            <a href="leave/admin_dashboard.php" class="sidebar-item flex items-center px-6 py-3 text-sm font-medium text-gray-300">
                 <i class="fa-solid fa-calendar-alt w-6 text-center mr-3"></i> Leave Management
             </a>
             <a href="payroll.php" class="sidebar-item flex items-center px-6 py-3 text-sm font-medium <?php echo (strpos($current_page, 'payroll') !== false || strpos($current_page, 'salary') !== false) ? 'active' : 'text-gray-300'; ?>">

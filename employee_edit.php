@@ -27,6 +27,23 @@ try {
     die("Database error: " . $e->getMessage());
 }
 
+// ── Handle password reset separately (doesn't touch the main form) ──────────
+$pw_success = '';
+$pw_error   = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'reset_password') {
+    $new_pw  = trim($_POST['new_password'] ?? '');
+    $conf_pw = trim($_POST['confirm_password'] ?? '');
+    if (strlen($new_pw) < 6) {
+        $pw_error = 'Password must be at least 6 characters.';
+    } elseif ($new_pw !== $conf_pw) {
+        $pw_error = 'Passwords do not match.';
+    } else {
+        $hash = password_hash($new_pw, PASSWORD_BCRYPT);
+        $pdo->prepare("UPDATE employees SET password_hash=? WHERE id=?")->execute([$hash, $id]);
+        $pw_success = $new_pw; // store plain so we can show it once
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $first_name = trim($_POST['first_name'] ?? '');
     $last_name = trim($_POST['last_name'] ?? '');
@@ -158,6 +175,9 @@ include 'sidebar.php';
                 </button>
                 <button type="button" onclick="switchTab('employment')" id="tab-btn-employment" class="flex-1 min-w-[120px] py-2.5 px-3 text-sm font-medium rounded-lg transition-all text-center tab-btn text-gray-600 hover:text-gray-900">
                     <i class="fa-solid fa-briefcase mr-1.5"></i> Employment
+                </button>
+                <button type="button" onclick="switchTab('portal')" id="tab-btn-portal" class="flex-1 min-w-[120px] py-2.5 px-3 text-sm font-medium rounded-lg transition-all text-center tab-btn text-gray-600 hover:text-gray-900">
+                    <i class="fa-solid fa-key mr-1.5"></i> Portal Access
                 </button>
             </div>
 
@@ -498,7 +518,111 @@ include 'sidebar.php';
 
                 </form>
             </div>
+
+            <!-- PORTAL ACCESS PANEL (separate form, outside main form) -->
+            <div id="tab-portal" class="hidden mt-6">
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+
+                    <?php if ($pw_success): ?>
+                    <div class="mb-6 p-5 bg-emerald-50 border border-emerald-200 rounded-xl">
+                        <div class="flex items-start gap-3">
+                            <i class="fa-solid fa-circle-check text-emerald-500 text-xl mt-0.5"></i>
+                            <div>
+                                <p class="font-bold text-emerald-800 text-sm">Password Reset Successfully!</p>
+                                <p class="text-xs text-emerald-700 mt-1">Share the new credentials below with the employee. This will not be shown again.</p>
+                                <div class="mt-3 flex flex-wrap gap-4">
+                                    <div>
+                                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Portal Email</p>
+                                        <code class="text-sm font-mono font-bold text-gray-800 bg-gray-100 px-2 py-1 rounded-lg"><?php echo htmlspecialchars($employee['email']); ?></code>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">New Password</p>
+                                        <code class="text-sm font-mono font-bold text-emerald-700 bg-emerald-100 px-2 py-1 rounded-lg"><?php echo htmlspecialchars($pw_success); ?></code>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+
+                    <?php if ($pw_error): ?>
+                    <div class="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl flex items-center gap-2 text-sm">
+                        <i class="fa-solid fa-circle-exclamation"></i> <?php echo htmlspecialchars($pw_error); ?>
+                    </div>
+                    <?php endif; ?>
+
+                    <div class="border-b border-gray-100 pb-4 mb-6">
+                        <h3 class="text-lg font-semibold text-gray-900"><i class="fa-solid fa-key mr-2 text-amber-500"></i>Portal Access &amp; Password Management</h3>
+                        <p class="text-sm text-gray-500 mt-1">Reset the employee's leave-portal login password. The new password will be active immediately.</p>
+                    </div>
+
+                    <!-- Portal status info -->
+                    <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-6 flex items-center gap-4">
+                        <div class="h-10 w-10 rounded-full bg-brand-50 border border-brand-100 flex items-center justify-center text-brand-700 text-sm font-bold flex-shrink-0">
+                            <?php echo strtoupper(substr($employee['first_name'],0,1).substr($employee['last_name'],0,1)); ?>
+                        </div>
+                        <div>
+                            <p class="text-sm font-semibold text-gray-800"><?php echo htmlspecialchars($employee['full_name'] ?: ($employee['first_name'].' '.$employee['last_name'])); ?></p>
+                            <p class="text-xs text-gray-500">Portal Login: <span class="font-mono text-brand-600"><?php echo htmlspecialchars($employee['email']); ?></span></p>
+                        </div>
+                        <div class="ml-auto">
+                            <?php if (!empty($employee['password_hash'])): ?>
+                                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-full text-xs font-semibold">
+                                    <span class="h-2 w-2 rounded-full bg-emerald-500"></span> Portal Account Active
+                                </span>
+                            <?php else: ?>
+                                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 text-amber-700 rounded-full text-xs font-semibold">
+                                    <span class="h-2 w-2 rounded-full bg-amber-500"></span> No Password Set
+                                </span>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+
+                    <!-- Password reset form -->
+                    <form action="employee_edit.php?id=<?php echo htmlspecialchars($id); ?>" method="POST">
+                        <input type="hidden" name="action" value="reset_password">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">New Password <span class="text-red-500">*</span></label>
+                                <div class="relative">
+                                    <input type="password" name="new_password" id="new_pw_input" required minlength="6"
+                                        class="w-full rounded-lg border border-gray-300 py-2.5 px-3 pr-10 text-gray-900 focus:ring-2 focus:ring-brand-600 focus:border-brand-600 text-sm outline-none transition-all"
+                                        placeholder="Min. 6 characters">
+                                    <button type="button" onclick="togglePw('new_pw_input','eye1')" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                                        <i id="eye1" class="fa-regular fa-eye text-sm"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Confirm Password <span class="text-red-500">*</span></label>
+                                <div class="relative">
+                                    <input type="password" name="confirm_password" id="conf_pw_input" required minlength="6"
+                                        class="w-full rounded-lg border border-gray-300 py-2.5 px-3 pr-10 text-gray-900 focus:ring-2 focus:ring-brand-600 focus:border-brand-600 text-sm outline-none transition-all"
+                                        placeholder="Re-enter password">
+                                    <button type="button" onclick="togglePw('conf_pw_input','eye2')" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                                        <i id="eye2" class="fa-regular fa-eye text-sm"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 flex items-start gap-2">
+                            <i class="fa-solid fa-triangle-exclamation mt-0.5"></i>
+                            <span>This resets the employee's <strong>Leave Portal</strong> password. The employee will need to use the new password on their next login at <code class="bg-amber-100 px-1 rounded">leave/login.php</code>.</span>
+                        </div>
+                        <div class="mt-6 flex items-center gap-3">
+                            <button type="submit" class="bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2.5 px-7 rounded-lg transition-colors text-sm shadow-sm flex items-center gap-2">
+                                <i class="fa-solid fa-key"></i> Reset Portal Password
+                            </button>
+                            <button type="button" onclick="generateRandomPw()" class="border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2.5 px-5 rounded-lg transition-colors text-sm flex items-center gap-2">
+                                <i class="fa-solid fa-shuffle"></i> Generate Random
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
         </div>
+    </div>
     </div>
 </main>
 
@@ -595,10 +719,38 @@ function updateRoles(selectedRole = '') {
     }
 }
 
+function togglePw(inputId, iconId) {
+    const inp = document.getElementById(inputId);
+    const ico = document.getElementById(iconId);
+    if (inp.type === 'password') {
+        inp.type = 'text';
+        ico.className = 'fa-regular fa-eye-slash text-sm';
+    } else {
+        inp.type = 'password';
+        ico.className = 'fa-regular fa-eye text-sm';
+    }
+}
+
+function generateRandomPw() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#!';
+    let pw = 'Hrms@';
+    for (let i = 0; i < 6; i++) pw += chars[Math.floor(Math.random() * chars.length)];
+    const inp1 = document.getElementById('new_pw_input');
+    const inp2 = document.getElementById('conf_pw_input');
+    inp1.type = 'text'; inp2.type = 'text';
+    inp1.value = pw; inp2.value = pw;
+    document.getElementById('eye1').className = 'fa-regular fa-eye-slash text-sm';
+    document.getElementById('eye2').className = 'fa-regular fa-eye-slash text-sm';
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     calculateAge();
     toggleTinField();
     updateRoles(<?php echo json_encode($_POST['designation'] ?? $employee['designation'] ?: $employee['position']); ?>);
+    // Auto-switch to portal tab if there was a reset action
+    <?php if ($pw_success || $pw_error): ?>
+    switchTab('portal');
+    <?php endif; ?>
 });
 </script>
 </body>
