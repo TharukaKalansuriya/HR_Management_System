@@ -32,10 +32,20 @@
         aside::-webkit-scrollbar { width: 4px; }
         aside::-webkit-scrollbar-track { background: transparent; }
         aside::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+
+        /* Admin layout: sidebar sticks while page scrolls normally */
+        body.admin-layout { overflow-x: hidden; }
+        body.admin-layout > aside {
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
     </style>
 </head>
 <?php 
 // Determine layout type: Admin/HR get flex-row with sidebar, Employees get standard flex-col
 $is_admin_layout = isset($_SESSION['admin_id']);
 ?>
-<body class="bg-slate-100 text-slate-900 min-h-screen flex <?php echo $is_admin_layout ? 'flex-row overflow-hidden' : 'flex-col'; ?>">
+<body class="bg-slate-100 text-slate-900 min-h-screen flex <?php echo $is_admin_layout ? 'flex-row admin-layout' : 'flex-col'; ?>">

@@ -13,7 +13,7 @@ $status_filter = isset($_GET['status']) ? $_GET['status'] : 'all';
 $search_query = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
 
 // Base query showing only HR Approved and Final Approved leaves
-$query = "SELECT l.*, e.first_name, e.last_name, e.department 
+$query = "SELECT l.*, e.first_name, e.last_name, e.department, e.position 
           FROM leaves l 
           JOIN employees e ON l.user_id = e.id 
           WHERE l.status IN ('HR_Approved', 'Approved')";
@@ -51,7 +51,7 @@ function getStatusDisplay($status) {
 }
 ?>
 
-<div class="flex flex-col flex-1 min-h-screen min-w-0" id="main-content">
+<div class="flex flex-col flex-1 min-w-0" id="main-content">
 <header class="bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between sticky top-0 z-40 shadow-sm">
     <div>
         <h1 class="text-xl font-bold text-slate-800">Admin Leave History</h1>
@@ -59,7 +59,7 @@ function getStatusDisplay($status) {
     </div>
     <span class="text-xs font-semibold text-slate-400"><?php echo date('l, d M Y'); ?></span>
 </header>
-<main class="flex-1 p-6 lg:p-8 overflow-y-auto bg-slate-100">
+<main class="flex-1 p-6 lg:p-8 bg-slate-100">
     <div class="max-w-full">
         <!-- Header Section -->
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
@@ -141,7 +141,16 @@ function getStatusDisplay($status) {
                                     <div class="text-xs font-bold text-slate-400"><?php echo ($row['leave_type'] === 'half_day') ? ($row['days'] == 1 ? '1/2' : ($row['days'] * 0.5)) : $row['days']; ?> Days</div>
                                 </td>
                                 <td class="px-8 py-5">
-                                    <?php echo getStatusDisplay($row['status']); ?>
+                                    <?php 
+                                        if ($row['status'] === 'HR_Approved' && stripos($row['position'], 'HR Manager') !== false) {
+                                            echo '<span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 border border-amber-200">
+                                                    <span class="w-1.5 h-1.5 bg-amber-500 rounded-full mr-2"></span>
+                                                    Pending
+                                                </span>';
+                                        } else {
+                                            echo getStatusDisplay($row['status']);
+                                        }
+                                    ?>
                                 </td>
                                 <td class="px-8 py-5 text-sm text-slate-500">
                                     <?php echo date('M d, Y', strtotime($row['created_at'])); ?>

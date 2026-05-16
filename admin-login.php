@@ -17,14 +17,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if ($result && mysqli_num_rows($result) > 0) {
             $user_data = mysqli_fetch_assoc($result);
             if (password_verify($password, $user_data['password_hash'])) {
-                $allowed_roles = ['super_admin', 'hr_manager', 'hr_officer'];
+                $db_role = $user_data['role'];
+                $is_supervisor = (!in_array($db_role, ['super_admin', 'hr_manager', 'hr_officer']) && !empty($user_data['department']));
                 
-                if (in_array($user_data['role'], $allowed_roles)) {
+                if (in_array($db_role, ['super_admin', 'hr_manager', 'hr_officer']) || $is_supervisor) {
                     $_SESSION['admin_id'] = $user_data['id'];
                     $_SESSION['admin_name'] = $user_data['first_name'] . " " . $user_data['last_name'];
-                    $_SESSION['admin_role'] = $user_data['role'];
+                    $_SESSION['admin_role'] = $is_supervisor ? 'supervisor' : $db_role;
+                    $_SESSION['db_role'] = $db_role; // Keep the specific title too
+                    $_SESSION['admin_dept'] = $user_data['department'] ?? '';
                     
-                    $redirect_page = ($user_data['role'] == 'super_admin') ? "admin_dashboard.php" : "hr_dashboard.php";
+                    $redirect_page = "hr_dashboard.php"; // Default for HR
+                    if ($db_role == 'super_admin') $redirect_page = "admin_dashboard.php";
+                    if ($is_supervisor) $redirect_page = "supervisor_dashboard.php";
+                    
                     header("Location: $redirect_page");
                     die;
                 } else {
@@ -50,9 +56,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <style>
         body { font-family: 'Outfit', sans-serif; }
         .glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); }
+        /* Hide browser default reveal button */
+        input::-ms-reveal, input::-ms-clear { display: none; }
     </style>
 </head>
-<body class="bg-slate-950 min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+<body class="bg-slate-950 min-h-screen flex items-center justify-center p-4 relative">
     <!-- Background Decor -->
     <div class="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
         <div class="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-900/20 rounded-full blur-[120px]"></div>

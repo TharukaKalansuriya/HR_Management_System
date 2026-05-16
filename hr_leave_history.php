@@ -12,12 +12,22 @@ include 'includes/sidebar.php';
 $status_filter = isset($_GET['status']) ? $_GET['status'] : 'all';
 $search_query = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
 
-$query = "SELECT l.*, e.first_name, e.last_name, e.department 
+$query = "SELECT l.*, e.first_name, e.last_name, e.department, e.position 
           FROM leaves l 
           JOIN employees e ON l.user_id = e.id 
-          WHERE 1=1";
+          WHERE l.status != 'Pending'";
 
-if ($status_filter !== 'all') {
+if (isset($_SESSION['admin_role']) && in_array($_SESSION['admin_role'], ['supervisor', 'hr_manager', 'hr_officer'])) {
+    $dept = mysqli_real_escape_string($conn, $_SESSION['admin_dept'] ?? '');
+    if (!empty($dept)) {
+        $query .= " AND e.department = '$dept'";
+    }
+}
+
+if ($status_filter === 'Pending') {
+    // For HR/Admin viewing "Pending" actions, we only show leaves Recommended by Supervisors
+    $query .= " AND l.status = 'Recommended'";
+} elseif ($status_filter !== 'all') {
     $query .= " AND l.status = '$status_filter'";
 }
 
@@ -35,6 +45,11 @@ function getStatusDisplay($status) {
         return '<span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700 border border-emerald-200">
                     <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-2"></span>
                     Approved
+                </span>';
+    } elseif ($status == 'recommended') {
+        return '<span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-500/10 text-blue-600 border border-blue-200">
+                    <span class="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2"></span>
+                    Recommended
                 </span>';
     } elseif ($status == 'rejected') {
         return '<span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-700 border border-red-200">
@@ -55,7 +70,7 @@ function getStatusDisplay($status) {
 }
 ?>
 
-<div class="flex flex-col flex-1 min-h-screen min-w-0" id="main-content">
+<div class="flex flex-col flex-1 min-w-0" id="main-content">
 <header class="bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between sticky top-0 z-40 shadow-sm">
     <div>
         <h1 class="text-xl font-bold text-slate-800">Leave History</h1>
@@ -63,7 +78,7 @@ function getStatusDisplay($status) {
     </div>
     <span class="text-xs font-semibold text-slate-400"><?php echo date('l, d M Y'); ?></span>
 </header>
-<main class="flex-1 p-6 lg:p-8 overflow-y-auto bg-slate-100">
+<main class="flex-1 p-6 lg:p-8 bg-slate-100">
     <div class="max-w-full">
         <!-- Header Section -->
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
@@ -82,8 +97,8 @@ function getStatusDisplay($status) {
             <form action="hr_leave_history.php" method="GET" class="flex items-center gap-3">
                 <input type="hidden" name="status" value="<?php echo $status_filter; ?>">
                 <div class="relative">
-                    <input type="text" name="search" value="<?php echo htmlspecialchars($search_query); ?>" placeholder="Search employee or type..." 
-                        class="pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all w-full md:w-64">
+                    <input type="text" id="hrTableSearch" name="search" value="<?php echo htmlspecialchars($search_query); ?>" placeholder="Search employee, dept, date..." 
+                        class="pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all w-full md:w-80 shadow-sm">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
@@ -119,7 +134,7 @@ function getStatusDisplay($status) {
         <!-- History Table -->
         <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
             <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse">
+                <table class="w-full text-left border-collapse" id="hrLeaveTable">
                     <thead>
                         <tr class="bg-slate-50/50">
                             <th class="px-8 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Employee</th>
@@ -142,7 +157,10 @@ function getStatusDisplay($status) {
                                         </div>
                                         <div>
                                             <div class="font-semibold text-slate-800 text-sm"><?php echo $row['first_name'] . ' ' . $row['last_name']; ?></div>
-                                            <div class="text-[10px] text-slate-400 font-medium uppercase tracking-wider"><?php echo $row['department']; ?></div>
+                                            <div class="flex flex-col">
+                                                <span class="text-[10px] text-slate-400 font-medium uppercase tracking-wider"><?php echo $row['department']; ?></span>
+                                                <span class="text-[9px] text-slate-300 font-bold uppercase tracking-tighter"><?php echo $row['position']; ?></span>
+                                            </div>
                                         </div>
                                     </div>
                                 </td>
@@ -153,8 +171,19 @@ function getStatusDisplay($status) {
                                     <div class="text-sm text-slate-600 font-semibold"><?php echo date('M d', strtotime($row['start_date'])) . ' - ' . date('M d', strtotime($row['end_date'])); ?></div>
                                     <div class="text-xs font-bold text-slate-400"><?php echo $row['days']; ?> Days</div>
                                 </td>
-                                <td class="px-8 py-5">
-                                    <?php echo getStatusDisplay($row['status']); ?>
+                                 <td class="px-8 py-5">
+                                    <?php 
+                                        $displayStatus = $row['status'];
+                                        // If it's an HR Manager and it's at HR_Approved stage, show as Pending
+                                        if ($row['status'] === 'HR_Approved' && stripos($row['position'], 'HR Manager') !== false) {
+                                            echo '<span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 border border-amber-200">
+                                                    <span class="w-1.5 h-1.5 bg-amber-500 rounded-full mr-2"></span>
+                                                    Pending
+                                                </span>';
+                                        } else {
+                                            echo getStatusDisplay($row['status']);
+                                        }
+                                    ?>
                                 </td>
                                 <td class="px-8 py-5 text-sm text-slate-500">
                                     <?php echo date('M d, Y', strtotime($row['created_at'])); ?>
@@ -198,5 +227,58 @@ function getStatusDisplay($status) {
     </div>
 </main>
 </div>
+
+<script>
+    // Enhanced Real-time Search for HR Table
+    document.getElementById('hrTableSearch').addEventListener('input', function() {
+        const value = this.value.toLowerCase().trim();
+        const searchTerms = value.split(/\s+/).filter(term => term.length > 0);
+        const rows = document.querySelectorAll('#hrLeaveTable tbody tr:not(.no-results-row)');
+        let visibleCount = 0;
+        
+        rows.forEach(row => {
+            const text = row.textContent.toLowerCase();
+            // Check if all search terms are present in the row text
+            const isMatch = searchTerms.every(term => text.includes(term));
+            
+            row.style.display = isMatch ? '' : 'none';
+            if (isMatch) visibleCount++;
+        });
+
+        // Dynamic feedback for no results
+        let noMatchRow = document.getElementById('hr-no-matching-row');
+        if (visibleCount === 0 && searchTerms.length > 0) {
+            if (!noMatchRow) {
+                noMatchRow = document.createElement('tr');
+                noMatchRow.id = 'hr-no-matching-row';
+                noMatchRow.className = 'no-results-row';
+                noMatchRow.innerHTML = `
+                    <td colspan="7" class="px-8 py-16 text-center">
+                        <div class="flex flex-col items-center justify-center text-slate-400">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mb-4 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            <p class="font-medium">No records matching "${value}"</p>
+                        </div>
+                    </td>`;
+                document.querySelector('#hrLeaveTable tbody').appendChild(noMatchRow);
+            } else {
+                noMatchRow.style.display = '';
+                noMatchRow.querySelector('p').textContent = `No records matching "${value}"`;
+            }
+        } else if (noMatchRow) {
+            noMatchRow.style.display = 'none';
+        }
+    });
+
+    // Prevent form submission on enter to keep real-time search active without reload
+    document.querySelector('form').addEventListener('submit', function(e) {
+        // We still allow form submit if the search value was loaded from URL
+        // but for typing we prevent it.
+        if (this.querySelector('#hrTableSearch').value !== '<?php echo $search_query; ?>') {
+            e.preventDefault();
+        }
+    });
+</script>
 
 <?php include 'includes/footer.php'; ?>

@@ -38,16 +38,16 @@ if (isset($_POST['status']) && isset($_POST['leave_id'])) {
 }
 
 // Fetch Stats
-$pending_count   = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as total FROM leaves WHERE status = 'Pending'"))['total'];
+$pending_hr_count   = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as total FROM leaves WHERE status = 'Recommended'"))['total'];
 $hr_approved_total = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as total FROM leaves WHERE status IN ('HR_Approved','Approved')"))['total'];
 $rejected_count  = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as total FROM leaves WHERE status = 'Rejected'"))['total'];
 $on_leave_today  = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as total FROM leaves WHERE status = 'Approved' AND CURDATE() BETWEEN start_date AND end_date"))['total'];
 
-// Fetch Pending Leaves
+// Fetch Pending Leaves (Recommended by Supervisors)
 $pending_result = mysqli_query($conn,
     "SELECT l.*, e.first_name, e.last_name, e.department, e.position 
      FROM leaves l JOIN employees e ON l.user_id = e.id 
-     WHERE l.status = 'Pending' ORDER BY l.created_at DESC"
+     WHERE l.status = 'Recommended' ORDER BY l.created_at DESC"
 );
 
 include 'includes/header.php'; 
@@ -55,7 +55,7 @@ include 'includes/sidebar.php';
 ?>
 
 <!-- Content column -->
-<div class="flex flex-col flex-1 min-h-screen min-w-0" id="main-content">
+<div class="flex flex-col flex-1 min-w-0" id="main-content">
 
     <!-- TOP BAR -->
     <header class="bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between sticky top-0 z-40 shadow-sm">
@@ -71,7 +71,7 @@ include 'includes/sidebar.php';
     </header>
 
     <!-- MAIN CONTENT -->
-    <main class="flex-1 p-6 lg:p-8 overflow-y-auto">
+    <main class="flex-1 p-6 lg:p-8">
 
         <?php if ($msg): ?>
         <div id="status-alert" class="mb-6 p-4 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-2xl flex items-center gap-3">
@@ -95,8 +95,8 @@ include 'includes/sidebar.php';
                     </div>
                     <span class="text-[10px] font-bold uppercase tracking-wider text-amber-500 bg-amber-50 px-2 py-1 rounded-lg">Review</span>
                 </div>
-                <p class="text-3xl font-bold text-slate-800"><?php echo $pending_count; ?></p>
-                <p class="text-xs text-slate-400 font-medium mt-1">Pending HR Review</p>
+                <p class="text-3xl font-bold text-slate-800"><?php echo $pending_hr_count; ?></p>
+                <p class="text-xs text-slate-400 font-medium mt-1">Supervisor Recommended</p>
             </div>
 
             <!-- HR Approved -->

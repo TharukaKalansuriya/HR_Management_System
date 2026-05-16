@@ -47,7 +47,7 @@ if (isset($_POST['delete_allocation'])) {
 $allocations_result = mysqli_query($conn, "SELECT * FROM leave_allocations ORDER BY updated_at DESC");
 ?>
 
-<div class="flex flex-col flex-1 min-h-screen min-w-0" id="main-content">
+<div class="flex flex-col flex-1 min-w-0" id="main-content">
 <header class="bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between sticky top-0 z-40 shadow-sm">
     <div>
         <h1 class="text-xl font-bold text-slate-800">Leave Allocation</h1>
@@ -55,7 +55,7 @@ $allocations_result = mysqli_query($conn, "SELECT * FROM leave_allocations ORDER
     </div>
     <span class="text-xs font-semibold text-slate-400"><?php echo date('l, d M Y'); ?></span>
 </header>
-<main class="flex-1 p-6 lg:p-8 overflow-y-auto bg-slate-100">
+<main class="flex-1 p-6 lg:p-8 bg-slate-100">
     <div class="max-w-7xl mx-auto">
         <!-- Header -->
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">

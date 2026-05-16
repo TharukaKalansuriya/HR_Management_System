@@ -84,8 +84,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
 
 
+    $today = new DateTime('today');
+    $diff_to_start = $today->diff($start);
+    $days_to_start = (int)$diff_to_start->format("%r%a");
+
     if ($end < $start) {
         $message = "End date cannot be earlier than start date!";
+        $message_type = "error";
+    } elseif ($leave_type == 'annual' && $days_to_start < 7) {
+        $message = "Annual Leave must be applied at least 7 days (1 week) in advance!";
         $message_type = "error";
     } elseif ($leave_type == 'annual' && $days > $annual_rem) {
         $message = "Insufficient Annual Leave balance!";
@@ -111,8 +118,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             }
         }
 
-        $query = "INSERT INTO leaves (user_id, leave_type, start_date, end_date, days, reason, document_path) 
-                  VALUES ('$user_id', '$leave_type', '$start_date', '$end_date', '$days', '$reason', '$document_path')";
+        $initial_status = 'Pending';
+        if (stripos($user_role, 'HR Manager') !== false) {
+            $initial_status = 'HR_Approved';
+        } elseif (stripos($user_role, 'Supervisor') !== false) {
+            $initial_status = 'Recommended';
+        }
+
+        $query = "INSERT INTO leaves (user_id, leave_type, start_date, end_date, days, reason, document_path, status) 
+                  VALUES ('$user_id', '$leave_type', '$start_date', '$end_date', '$days', '$reason', '$document_path', '$initial_status')";
         
         if (mysqli_query($conn, $query)) {
             $message = "Leave application submitted successfully!";
@@ -180,6 +194,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         <label class="block text-sm font-bold text-slate-700" for="start_date">Start Date</label>
                         <input type="date" id="start_date" name="start_date" required 
                             class="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none">
+                        <p id="annual-warning" class="text-[10px] text-rose-500 font-bold mt-1 hidden italic">* Annual leave requires 1 week (7 days) advance notice.</p>
                     </div>
 
                     <div class="space-y-2">
@@ -271,10 +286,38 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 
-    startDateInput.addEventListener('change', calculateDays);
+    const annualWarning = document.getElementById('annual-warning');
+    
+    function checkAnnualNotice() {
+        if (leaveTypeInput.value === 'annual' && startDateInput.value) {
+            const start = new Date(startDateInput.value);
+            start.setHours(0,0,0,0);
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            
+            const diffTime = start - today;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            if (diffDays < 7) {
+                annualWarning.classList.remove('hidden');
+            } else {
+                annualWarning.classList.add('hidden');
+            }
+        } else {
+            annualWarning.classList.add('hidden');
+        }
+    }
+
+    startDateInput.addEventListener('change', () => {
+        calculateDays();
+        checkAnnualNotice();
+    });
     endDateInput.addEventListener('change', calculateDays);
     if (leaveTypeInput) {
-        leaveTypeInput.addEventListener('change', calculateDays);
+        leaveTypeInput.addEventListener('change', () => {
+            calculateDays();
+            checkAnnualNotice();
+        });
     }
 
     // Show filename and preview after selection

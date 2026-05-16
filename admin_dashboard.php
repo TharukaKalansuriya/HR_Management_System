@@ -22,8 +22,9 @@ if (isset($_POST['status']) && isset($_POST['leave_id'])) {
         $new_status = 'Rejected';
         $admin_remark = 'Final Approved by Admin';
     } else {
-        $admin_remark = isset($_POST['admin_remark']) ? mysqli_real_escape_string($conn, $_POST['admin_remark']) : '';
-        if ($new_status == 'Approved') $admin_remark = 'Final Approved by Admin';
+        $admin_remark = isset($_POST['admin_remark']) && !empty($_POST['admin_remark']) 
+            ? mysqli_real_escape_string($conn, $_POST['admin_remark']) 
+            : ($new_status == 'Approved' ? 'Final Approved by Admin' : 'Rejected by Admin');
     }
     $update_query = "UPDATE leaves SET status = '$new_status', admin_remark = '$admin_remark' WHERE id = '$leave_id'";
     if (mysqli_query($conn, $update_query)) {
@@ -40,6 +41,18 @@ $staff_count          = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) 
 $on_leave_today       = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as total FROM leaves WHERE status = 'Approved' AND CURDATE() BETWEEN start_date AND end_date"))['total'];
 $pending_admin        = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as total FROM leaves WHERE status = 'HR_Approved'"))['total'];
 
+// Fetch Breakdown of employees on leave today by department
+$dept_on_leave_res = mysqli_query($conn, "SELECT e.department, COUNT(*) as count 
+                                         FROM leaves l 
+                                         JOIN employees e ON l.user_id = e.id 
+                                         WHERE l.status = 'Approved' 
+                                         AND CURDATE() BETWEEN l.start_date AND l.end_date 
+                                         GROUP BY e.department");
+$dept_on_leave_counts = [];
+while ($row = mysqli_fetch_assoc($dept_on_leave_res)) {
+    $dept_on_leave_counts[$row['department']] = $row['count'];
+}
+
 // Fetch Leave Requests
 $main_query = "SELECT l.*, e.first_name, e.last_name, e.department, e.position 
                FROM leaves l 
@@ -53,7 +66,7 @@ include 'includes/sidebar.php';
 ?>
 
 <!-- Page wrapper: sidebar already rendered, now we open the content column -->
-<div class="flex flex-col flex-1 min-h-screen min-w-0" id="main-content">
+<div class="flex flex-col flex-1 min-w-0" id="main-content">
 
     <!-- TOP BAR -->
     <header class="bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between sticky top-0 z-40 shadow-sm">
@@ -71,7 +84,7 @@ include 'includes/sidebar.php';
     </header>
 
     <!-- MAIN CONTENT -->
-    <main class="flex-1 p-6 lg:p-8 overflow-y-auto">
+    <main class="flex-1 p-6 lg:p-8">
 
         <?php if ($msg): ?>
         <div id="status-alert" class="mb-6 p-4 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-2xl flex items-center gap-3">
@@ -127,7 +140,6 @@ include 'includes/sidebar.php';
                 <p class="text-xs text-slate-400 font-medium mt-1">Final Approved</p>
             </div>
 
-            <!-- On Leave Today -->
             <div class="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
                 <div class="flex items-center justify-between mb-4">
                     <div class="w-11 h-11 bg-violet-50 rounded-xl flex items-center justify-center">
@@ -137,8 +149,24 @@ include 'includes/sidebar.php';
                     </div>
                     <span class="text-[10px] font-bold uppercase tracking-wider text-violet-500 bg-violet-50 px-2 py-1 rounded-lg">Today</span>
                 </div>
-                <p class="text-3xl font-bold text-slate-800"><?php echo $on_leave_today; ?></p>
+                <div class="flex items-baseline justify-between">
+                    <p class="text-3xl font-bold text-slate-800"><?php echo $on_leave_today; ?></p>
+                    <?php if ($on_leave_today > 0): ?>
+                        <div class="text-[10px] font-black text-violet-400 uppercase tracking-tighter">Active</div>
+                    <?php endif; ?>
+                </div>
                 <p class="text-xs text-slate-400 font-medium mt-1">On Leave Today</p>
+                
+                <?php if (!empty($dept_on_leave_counts)): ?>
+                    <div class="mt-4 pt-4 border-t border-slate-50 space-y-2">
+                        <?php foreach($dept_on_leave_counts as $dept => $count): ?>
+                            <div class="flex items-center justify-between">
+                                <span class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter truncate pr-2" title="<?php echo $dept; ?>"><?php echo $dept; ?></span>
+                                <span class="text-[10px] font-black text-violet-600 bg-violet-50 px-2 py-0.5 rounded-md"><?php echo $count; ?></span>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -167,7 +195,7 @@ include 'includes/sidebar.php';
                             <th class="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Duration</th>
                             <th class="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Document</th>
                             <th class="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                            <th class="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Action</th>
+                            <th class="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider text-center">Action</th>
                         </tr>
                     </thead>
                     <tbody id="leavesTableBody" class="divide-y divide-slate-50">
@@ -205,20 +233,29 @@ include 'includes/sidebar.php';
                                 <td class="px-6 py-4">
                                     <?php $status = $row['status']; ?>
                                     <?php if ($status == 'HR_Approved'): ?>
-                                        <span class="text-[10px] font-bold uppercase text-blue-500 bg-blue-50 px-2 py-1 rounded-lg">HR Approved</span>
+                                        <?php if (stripos($row['position'], 'HR Manager') !== false): ?>
+                                            <span class="text-[10px] font-bold uppercase text-amber-500 bg-amber-50 px-2 py-1 rounded-lg">Pending</span>
+                                        <?php else: ?>
+                                            <span class="text-[10px] font-bold uppercase text-blue-500 bg-blue-50 px-2 py-1 rounded-lg">HR Approved</span>
+                                        <?php endif; ?>
                                     <?php elseif ($status == 'Rejected'): ?>
                                         <span class="text-[10px] font-bold uppercase text-rose-500 bg-rose-50 px-2 py-1 rounded-lg">Rejected by HR</span>
                                     <?php elseif ($status == 'Approved'): ?>
                                         <span class="text-[10px] font-bold uppercase text-emerald-500 bg-emerald-50 px-2 py-1 rounded-lg">Approved</span>
                                     <?php endif; ?>
                                 </td>
-                                <td class="px-6 py-4">
-                                    <form method="POST" class="flex items-center gap-2">
+                                <td class="px-6 py-4 text-center">
+                                    <form method="POST" class="flex items-center justify-center gap-2">
                                         <input type="hidden" name="leave_id" value="<?php echo $row['id']; ?>">
                                         <button type="submit" name="status" value="Approved" 
-                                            class="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 shadow-sm shadow-emerald-200">
+                                            class="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 shadow-sm shadow-emerald-200" title="Approve">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                                             Approve
+                                        </button>
+                                        <button type="submit" name="status" value="Rejected" 
+                                            class="bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 shadow-sm shadow-rose-200" title="Reject">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                            Reject
                                         </button>
                                     </form>
                                 </td>
