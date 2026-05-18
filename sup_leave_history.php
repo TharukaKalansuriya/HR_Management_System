@@ -15,7 +15,7 @@ $status_filter = isset($_GET['status']) ? $_GET['status'] : 'all';
 $search_query = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
 $dept = mysqli_real_escape_string($conn, $_SESSION['admin_dept'] ?? '');
 
-$query = "SELECT l.*, e.first_name, e.last_name, e.department 
+$query = "SELECT l.*, e.first_name, e.last_name, e.department, e.position 
           FROM leaves l 
           JOIN employees e ON l.user_id = e.id 
           WHERE e.department = '$dept' AND e.position NOT LIKE '%HR Manager%'";
@@ -37,7 +37,7 @@ $query .= " ORDER BY l.created_at DESC";
 $result = mysqli_query($conn, $query);
 
 // Helper function for status display
-function getStatusDisplay($status)
+function getStatusDisplay($status, $position = '')
 {
     $status = strtolower($status);
     if ($status == 'approved') {
@@ -45,10 +45,21 @@ function getStatusDisplay($status)
                     <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-2"></span>
                     Final Approved
                 </span>';
-    } elseif ($status == 'recommended' || $status == 'hr_approved') {
-        return '<span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 border border-amber-200">
-                    <span class="w-1.5 h-1.5 bg-amber-500 rounded-full mr-2"></span>
-                    Pending
+    } elseif ($status == 'hr_approved') {
+        return '<span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-blue-700 border border-blue-200">
+                    <span class="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2"></span>
+                    HR Approved
+                </span>';
+    } elseif ($status == 'recommended') {
+        if (stripos($position, 'Supervisor') !== false) {
+            return '<span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 border border-amber-200">
+                        <span class="w-1.5 h-1.5 bg-amber-500 rounded-full mr-2"></span>
+                        Pending
+                    </span>';
+        }
+        return '<span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-purple-100 text-purple-700 border border-purple-200">
+                    <span class="w-1.5 h-1.5 bg-purple-500 rounded-full mr-2"></span>
+                    Recommended
                 </span>';
     } elseif ($status == 'rejected') {
         return '<span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-700 border border-red-200">
@@ -214,7 +225,7 @@ function getStatusDisplay($status)
                                             </div>
                                         </td>
                                         <td class="px-8 py-5">
-                                            <?php echo getStatusDisplay($row['status']); ?>
+                                            <?php echo getStatusDisplay($row['status'], $row['position']); ?>
                                         </td>
                                         <td class="px-8 py-5 text-sm text-slate-500">
                                             <p class="truncate max-w-[200px] italic"

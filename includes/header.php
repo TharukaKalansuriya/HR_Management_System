@@ -1,4 +1,11 @@
-<?php if (session_status() === PHP_SESSION_NONE) { session_start(); } ?>
+<?php 
+if (session_status() === PHP_SESSION_NONE) { 
+    ini_set('session.cookie_lifetime', 2592000);
+    ini_set('session.gc_maxlifetime', 2592000);
+    session_set_cookie_params(2592000, '/');
+    session_start(); 
+} 
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -46,6 +53,8 @@
 </head>
 <?php 
 // Determine layout type: Admin/HR get flex-row with sidebar, Employees get standard flex-col
-$is_admin_layout = isset($_SESSION['admin_id']);
+$current_page = basename($_SERVER['PHP_SELF']);
+$is_employee_page = in_array($current_page, ['dashboard.php', 'apply_leave.php', 'leave-history.php', 'profile.php', 'resign.php', 'hr_resign_approve.php', 'admin_resign_approve.php', 'notifications.php']);
+$is_admin_layout = isset($_SESSION['admin_id']) && !$is_employee_page;
 ?>
 <body class="bg-slate-100 text-slate-900 min-h-screen flex <?php echo $is_admin_layout ? 'flex-row admin-layout' : 'flex-col'; ?>">

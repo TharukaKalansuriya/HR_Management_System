@@ -25,12 +25,22 @@ if (isset($_POST['update_allocations'])) {
         $half_day = (int) $_POST['half_day_limit'];
         $type = mysqli_real_escape_string($conn, $_POST['allocation_type']);
 
-        $upsert_query = "INSERT INTO leave_allocations (role_name, department_name, annual_limit, casual_limit, half_day_limit, allocation_type)
-                         VALUES ('$role', '$dept', '$annual', '$casual', '$half_day', '$type')
-                         ON DUPLICATE KEY UPDATE
-                         department_name = '$dept', annual_limit = '$annual', casual_limit = '$casual', half_day_limit = '$half_day', allocation_type = '$type'";
-        if (mysqli_query($conn, $upsert_query)) {
-            $msg = "Leave allocations for $role ($dept) updated successfully.";
+        // Check if allocation for this role already exists
+        $check_query = mysqli_query($conn, "SELECT id FROM leave_allocations WHERE role_name = '$role'");
+        if ($check_query && mysqli_num_rows($check_query) > 0) {
+            // Update existing allocation
+            $update_query = "UPDATE leave_allocations 
+                             SET department_name = '$dept', annual_limit = '$annual', casual_limit = '$casual', half_day_limit = '$half_day', allocation_type = '$type' 
+                             WHERE role_name = '$role'";
+            if (mysqli_query($conn, $update_query)) {
+                $msg = "Leave allocations for $role ($dept) updated successfully.";
+            }
+        } else {
+            $insert_query = "INSERT INTO leave_allocations (role_name, department_name, annual_limit, casual_limit, half_day_limit, allocation_type)
+                             VALUES ('$role', '$dept', '$annual', '$casual', '$half_day', '$type')";
+            if (mysqli_query($conn, $insert_query)) {
+                $msg = "Leave allocations for $role ($dept) created successfully.";
+            }
         }
     }
 }

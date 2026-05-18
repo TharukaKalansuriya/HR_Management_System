@@ -1,10 +1,25 @@
-<?php 
-if (session_status() === PHP_SESSION_NONE) { session_start(); }
+<?php
+if (session_status() === PHP_SESSION_NONE) {
+    ini_set('session.cookie_lifetime', 2592000);
+    ini_set('session.gc_maxlifetime', 2592000);
+    session_set_cookie_params(2592000, '/');
+    session_start();
+}
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
     die;
 }
 include 'includes/dbconnection.php';
+
+// Check if employee is inactive (grace period)
+$user_id = $_SESSION['user_id'];
+$emp_q = mysqli_query($conn, "SELECT status FROM employees WHERE id = '$user_id'");
+$emp_data = mysqli_fetch_assoc($emp_q);
+if ($emp_data && $emp_data['status'] === 'Inactive') {
+    header("Location: dashboard.php");
+    die;
+}
+
 include 'includes/header.php'; 
 include 'includes/navbar.php'; 
 
@@ -13,7 +28,20 @@ $message_type = ""; // 'success' or 'error'
 
 // Helper for calculation
 function getUsedDays($conn, $user_id, $type) {
-    $q = "SELECT SUM(days) as total FROM leaves WHERE user_id = '$user_id' AND leave_type = '$type' AND status = 'Approved'";
+    // Check if the employee is a supervisor
+    $emp_query = mysqli_query($conn, "SELECT position FROM employees WHERE id = '$user_id'");
+    $emp_row = mysqli_fetch_assoc($emp_query);
+    $position = $emp_row['position'] ?? '';
+    
+    if (stripos($position, 'Supervisor') !== false || stripos($position, 'HR Manager') !== false) {
+        // For Supervisor and HR Manager roles: Only decrease leaves after both HR and Admin approved (status = 'Approved')
+        $status_condition = "status = 'Approved'";
+    } else {
+        // For other employees: Decrease on HR_Approved or Approved
+        $status_condition = "status IN ('HR_Approved', 'Approved')";
+    }
+
+    $q = "SELECT SUM(days) as total FROM leaves WHERE user_id = '$user_id' AND leave_type = '$type' AND $status_condition";
     $res = mysqli_query($conn, $q);
     $data = mysqli_fetch_assoc($res);
     return $data['total'] ? $data['total'] : 0;

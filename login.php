@@ -1,5 +1,10 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    ini_set('session.cookie_lifetime', 2592000);
+    ini_set('session.gc_maxlifetime', 2592000);
+    session_set_cookie_params(2592000, '/');
+    session_start();
+}
 include 'includes/dbconnection.php';
 
 $error = "";
@@ -19,16 +24,36 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $user_data = mysqli_fetch_assoc($result);
 
             // Verify the hashed password
-            if (password_verify($password, $user_data['password'])) {
-                // Set session variables
-                $_SESSION['user_id'] = $user_data['id'];
-                $_SESSION['user_name'] = $user_data['first_name'] . " " . $user_data['last_name'];
-                $_SESSION['user_email'] = $user_data['email'];
-                $_SESSION['position'] = $user_data['position'];
+            if (password_verify($password, $user_data['password_hash'])) {
+                // Check if inactive and grace period passed
+                if ($user_data['status'] === 'Inactive') {
+                    $user_id = $user_data['id'];
+                    $notif_q = "SELECT created_at FROM notifications WHERE user_id = '$user_id' AND (message LIKE '%resignation%' OR message LIKE '%termination%') ORDER BY created_at DESC LIMIT 1";
+                    $notif_res = mysqli_query($conn, $notif_q);
+                    $allow_login = false;
+                    if (mysqli_num_rows($notif_res) > 0) {
+                        $notif_data = mysqli_fetch_assoc($notif_res);
+                        $notif_time = strtotime($notif_data['created_at']);
+                        if (time() - $notif_time <= 86400) { // 24 hours
+                            $allow_login = true;
+                        }
+                    }
+                    if (!$allow_login) {
+                        $error = "Account inactive. Access denied.";
+                    }
+                }
+                
+                if (empty($error)) {
+                    // Set session variables
+                    $_SESSION['user_id'] = $user_data['id'];
+                    $_SESSION['user_name'] = $user_data['first_name'] . " " . $user_data['last_name'];
+                    $_SESSION['user_email'] = $user_data['email'];
+                    $_SESSION['position'] = $user_data['position'];
 
-                // Redirect to dashboard
-                header("Location: dashboard.php");
-                die;
+                    // Redirect to dashboard
+                    header("Location: dashboard.php");
+                    die;
+                }
             } else {
                 $error = "Password verification failed! (Incorrect password)";
             }

@@ -18,7 +18,11 @@ if (isset($_POST['add_dept_role'])) {
     if (!empty($new_dept) && !empty($new_role)) {
         $insert_dept_role = "INSERT IGNORE INTO department_roles (department, role_name) VALUES ('$new_dept', '$new_role')";
         if (mysqli_query($conn, $insert_dept_role)) {
-            $msg = "Role '$new_role' added to '$new_dept' successfully.";
+            if (mysqli_affected_rows($conn) > 0) {
+                $msg = "Role '$new_role' added to '$new_dept' successfully.";
+            } else {
+                $msg = "Role '$new_role' already exists in '$new_dept'.";
+            }
         }
     }
 }

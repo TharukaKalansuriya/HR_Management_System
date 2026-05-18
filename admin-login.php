@@ -1,5 +1,10 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    ini_set('session.cookie_lifetime', 2592000);
+    ini_set('session.gc_maxlifetime', 2592000);
+    session_set_cookie_params(2592000, '/');
+    session_start();
+}
 include 'includes/dbconnection.php';
 
 $error = "";
@@ -17,24 +22,47 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if ($result && mysqli_num_rows($result) > 0) {
             $user_data = mysqli_fetch_assoc($result);
             if (password_verify($password, $user_data['password_hash'])) {
-                $db_role = $user_data['role'];
-                $is_supervisor = (!in_array($db_role, ['super_admin', 'hr_manager', 'hr_officer']) && !empty($user_data['department']));
-                
-                if (in_array($db_role, ['super_admin', 'hr_manager', 'hr_officer']) || $is_supervisor) {
-                    $_SESSION['admin_id'] = $user_data['id'];
-                    $_SESSION['admin_name'] = $user_data['first_name'] . " " . $user_data['last_name'];
-                    $_SESSION['admin_role'] = $is_supervisor ? 'supervisor' : $db_role;
-                    $_SESSION['db_role'] = $db_role; // Keep the specific title too
-                    $_SESSION['admin_dept'] = $user_data['department'] ?? '';
+                // Check if linked employee is inactive and grace period passed
+                $email = $user_data['email'];
+                $emp_q = mysqli_query($conn, "SELECT id, status FROM employees WHERE email = '$email'");
+                $emp_data = mysqli_fetch_assoc($emp_q);
+                if ($emp_data && $emp_data['status'] === 'Inactive') {
+                    $user_id = $emp_data['id'];
+                    $notif_q = "SELECT created_at FROM notifications WHERE user_id = '$user_id' AND (message LIKE '%resignation%' OR message LIKE '%termination%') ORDER BY created_at DESC LIMIT 1";
+                    $notif_res = mysqli_query($conn, $notif_q);
+                    $allow_login = false;
+                    if (mysqli_num_rows($notif_res) > 0) {
+                        $notif_data = mysqli_fetch_assoc($notif_res);
+                        $notif_time = strtotime($notif_data['created_at']);
+                        if (time() - $notif_time <= 86400) { // 24 hours
+                            $allow_login = true;
+                        }
+                    }
+                    if (!$allow_login) {
+                        $error = "Account inactive. Access denied.";
+                    }
+                }
+
+                if (empty($error)) {
+                    $db_role = $user_data['role'];
+                    $is_supervisor = (!in_array($db_role, ['super_admin', 'hr_manager', 'hr_officer']) && !empty($user_data['department']));
                     
-                    $redirect_page = "hr_dashboard.php"; // Default for HR
-                    if ($db_role == 'super_admin') $redirect_page = "admin_dashboard.php";
-                    if ($is_supervisor) $redirect_page = "supervisor_dashboard.php";
-                    
-                    header("Location: $redirect_page");
-                    die;
-                } else {
-                    $error = "Unauthorized role! Access denied.";
+                    if (in_array($db_role, ['super_admin', 'hr_manager', 'hr_officer']) || $is_supervisor) {
+                        $_SESSION['admin_id'] = $user_data['id'];
+                        $_SESSION['admin_name'] = $user_data['first_name'] . " " . $user_data['last_name'];
+                        $_SESSION['admin_role'] = $is_supervisor ? 'supervisor' : $db_role;
+                        $_SESSION['db_role'] = $db_role; // Keep the specific title too
+                        $_SESSION['admin_dept'] = $user_data['department'] ?? '';
+                        
+                        $redirect_page = "hr_dashboard.php"; // Default for HR
+                        if ($db_role == 'super_admin') $redirect_page = "admin_dashboard.php";
+                        if ($is_supervisor) $redirect_page = "supervisor_dashboard.php";
+                        
+                        header("Location: $redirect_page");
+                        die;
+                    } else {
+                        $error = "Unauthorized role! Access denied.";
+                    }
                 }
             } else {
                 $error = "Invalid password!";

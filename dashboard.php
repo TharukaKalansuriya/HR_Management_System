@@ -1,5 +1,10 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    ini_set('session.cookie_lifetime', 2592000);
+    ini_set('session.gc_maxlifetime', 2592000);
+    session_set_cookie_params(2592000, '/');
+    session_start();
+}
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
     die;
@@ -47,10 +52,34 @@ $TOTAL_SICK = $allocation['half_day_limit'] ?? 7; // Mapping sick leave to half_
 // Function to get used leave days
 function getUsedDays($conn, $user_id, $type)
 {
-    $q = "SELECT SUM(days) as total FROM leaves WHERE user_id = '$user_id' AND leave_type = '$type' AND status IN ('HR_Approved', 'Approved')";
+    // Check if the employee is a supervisor
+    $emp_query = mysqli_query($conn, "SELECT position FROM employees WHERE id = '$user_id'");
+    $emp_row = mysqli_fetch_assoc($emp_query);
+    $position = $emp_row['position'] ?? '';
+    
+    if (stripos($position, 'Supervisor') !== false || stripos($position, 'HR Manager') !== false) {
+        // For Supervisor and HR Manager roles: Only decrease leaves after both HR and Admin approved (status = 'Approved')
+        $status_condition = "status = 'Approved'";
+    } else {
+        // For other employees: Decrease on HR_Approved or Approved
+        $status_condition = "status IN ('HR_Approved', 'Approved')";
+    }
+
+    $q = "SELECT SUM(days) as total FROM leaves WHERE user_id = '$user_id' AND leave_type = '$type' AND $status_condition";
     $res = mysqli_query($conn, $q);
     $data = mysqli_fetch_assoc($res);
     return $data['total'] ? $data['total'] : 0;
+}
+
+function formatDays($days) {
+    if ($days == 0.5) return "1/2";
+    if (floor($days) == $days) return str_pad($days, 2, '0', STR_PAD_LEFT);
+    $int_part = floor($days);
+    $dec_part = $days - $int_part;
+    if ($dec_part == 0.5) {
+        return ($int_part > 0 ? $int_part . " " : "") . "1/2";
+    }
+    return $days;
 }
 
 $annual_used = getUsedDays($conn, $user_id, 'annual');
@@ -72,6 +101,12 @@ $total_rem = $annual_rem + $casual_rem;
 $pending_q = "SELECT COUNT(*) as total FROM leaves WHERE user_id = '$user_id' AND (status = 'Pending' OR status = 'HR_Approved')";
 $pending_res = mysqli_query($conn, $pending_q);
 $pending_count = mysqli_fetch_assoc($pending_res)['total'];
+$is_grace_period = false;
+$emp_q = mysqli_query($conn, "SELECT status FROM employees WHERE id = '$user_id'");
+$emp_data = mysqli_fetch_assoc($emp_q);
+if ($emp_data && $emp_data['status'] === 'Inactive') {
+    $is_grace_period = true;
+}
 ?>
 
 <main class="flex-grow p-6 md:p-10 bg-slate-50">
@@ -83,12 +118,24 @@ $pending_count = mysqli_fetch_assoc($pending_res)['total'];
                     <?php echo explode(' ', $_SESSION['user_name'])[0]; ?>! 👋</h1>
                 <p class="text-slate-500 mt-1">Here's what's happening with your leave status.</p>
             </div>
-            <a href="apply_leave.php"
-                class="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-xl shadow-lg shadow-blue-100 transition-all transform hover:-translate-y-1 active:scale-95 gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd"
-                        d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
-                        clip-rule="evenodd" />
+            <?php if ($is_grace_period): ?>
+                <div class="bg-amber-50 border border-amber-200 text-amber-700 px-6 py-3 rounded-xl font-semibold text-sm flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                    </svg>
+                    Account Scheduled for Deactivation.
+                </div>
+            <?php else: ?>
+                <a href="apply_leave.php"
+                    class="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-xl shadow-lg shadow-blue-100 transition-all transform hover:-translate-y-1 active:scale-95 gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd"
+                            d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+                            clip-rule="evenodd" />
+                    </svg>
+                    Apply for Leave
+                </a>
+            <?php endif; ?>
                 </svg>
                 Apply for Leave
             </a>
@@ -100,7 +147,7 @@ $pending_count = mysqli_fetch_assoc($pending_res)['total'];
             <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 transition-all hover:shadow-md">
                 <div
                     class="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4 text-xl font-bold">
-                    <?php echo str_pad(max(0, $total_rem), 2, '0', STR_PAD_LEFT); ?></div>
+                    <?php echo formatDays(max(0, $total_rem)); ?></div>
                 <h3 class="text-slate-500 text-sm font-medium">Total Balance</h3>
                 <p class="text-2xl font-bold text-slate-800">Days Left</p>
             </div>
@@ -109,10 +156,10 @@ $pending_count = mysqli_fetch_assoc($pending_res)['total'];
                 <div class="flex items-center gap-2 mb-4">
                     <div
                         class="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center text-xl font-bold">
-                        <?php echo str_pad(max(0, $annual_rem), 2, '0', STR_PAD_LEFT); ?></div>
+                        <?php echo formatDays(max(0, $annual_rem)); ?></div>
                     <span class="text-slate-300 font-bold text-xl">/</span>
                     <span
-                        class="text-slate-400 font-bold text-lg"><?php echo str_pad($TOTAL_ANNUAL, 2, '0', STR_PAD_LEFT); ?></span>
+                        class="text-slate-400 font-bold text-lg"><?php echo formatDays($TOTAL_ANNUAL); ?></span>
                 </div>
                 <h3 class="text-slate-500 text-sm font-medium">Annual Leave</h3>
             </div>
@@ -121,10 +168,10 @@ $pending_count = mysqli_fetch_assoc($pending_res)['total'];
                 <div class="flex items-center gap-2 mb-4">
                     <div
                         class="w-12 h-12 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center text-xl font-bold">
-                        <?php echo str_pad(max(0, $casual_rem), 2, '0', STR_PAD_LEFT); ?></div>
+                        <?php echo formatDays(max(0, $casual_rem)); ?></div>
                     <span class="text-slate-300 font-bold text-xl">/</span>
                     <span
-                        class="text-slate-400 font-bold text-lg"><?php echo str_pad($TOTAL_CASUAL, 2, '0', STR_PAD_LEFT); ?></span>
+                        class="text-slate-400 font-bold text-lg"><?php echo formatDays($TOTAL_CASUAL); ?></span>
                 </div>
                 <h3 class="text-slate-500 text-sm font-medium">Casual Leave</h3>
             </div>
@@ -133,10 +180,10 @@ $pending_count = mysqli_fetch_assoc($pending_res)['total'];
                 <div class="flex items-center gap-2 mb-4">
                     <div
                         class="w-12 h-12 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center text-xl font-bold">
-                        <?php echo str_pad(max(0, $sick_rem), 2, '0', STR_PAD_LEFT); ?></div>
+                        <?php echo formatDays(max(0, $sick_rem)); ?></div>
                     <span class="text-slate-300 font-bold text-xl">/</span>
                     <span
-                        class="text-slate-400 font-bold text-lg"><?php echo str_pad($TOTAL_CASUAL, 2, '0', STR_PAD_LEFT); ?></span>
+                        class="text-slate-400 font-bold text-lg"><?php echo formatDays($TOTAL_CASUAL); ?></span>
                 </div>
                 <h3 class="text-slate-500 text-sm font-medium">Sick Leave</h3>
             </div>

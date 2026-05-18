@@ -27,15 +27,38 @@ if (isset($_SESSION['admin_role']) && $_SESSION['admin_role'] === 'supervisor') 
 }
 $employees_result = mysqli_query($conn, $employees_query);
 
-// Helper function to get approved leave days for an employee by type
 function getUsedLeaveDays($conn, $employee_id, $type) {
+    // Check if the employee is a supervisor
+    $emp_query = mysqli_query($conn, "SELECT position FROM employees WHERE id = '$employee_id'");
+    $emp_row = mysqli_fetch_assoc($emp_query);
+    $position = $emp_row['position'] ?? '';
+    
+    if (stripos($position, 'Supervisor') !== false || stripos($position, 'HR Manager') !== false) {
+        // For Supervisor and HR Manager roles: Only decrease leaves after both HR and Admin approved (status = 'Approved')
+        $status_condition = "status = 'Approved'";
+    } else {
+        // For other employees: Decrease on HR_Approved or Approved
+        $status_condition = "status IN ('HR_Approved', 'Approved')";
+    }
+
     $query = "SELECT SUM(days) as total_used FROM leaves 
               WHERE user_id = '$employee_id' 
               AND leave_type = '$type' 
-              AND status = 'Approved'";
+              AND $status_condition";
     $result = mysqli_query($conn, $query);
     $data = mysqli_fetch_assoc($result);
     return $data['total_used'] ? $data['total_used'] : 0;
+}
+
+function formatDays($days) {
+    if ($days == 0.5) return "1/2";
+    if (floor($days) == $days) return $days;
+    $int_part = floor($days);
+    $dec_part = $days - $int_part;
+    if ($dec_part == 0.5) {
+        return ($int_part > 0 ? $int_part . " " : "") . "1/2";
+    }
+    return $days;
 }
 ?>
 
@@ -191,15 +214,15 @@ ksort($dept_groups);
                                     </div>
                                 </td>
                                 <td class="px-8 py-5 text-center">
-                                    <span class="text-sm font-black <?php echo $annual_rem <= 2 ? 'text-rose-500' : 'text-slate-800'; ?>"><?php echo floor($annual_rem * 2) / 2; ?></span>
+                                    <span class="text-sm font-black <?php echo $annual_rem <= 2 ? 'text-rose-500' : 'text-slate-800'; ?>"><?php echo formatDays(floor($annual_rem * 2) / 2); ?></span>
                                     <span class="text-[11px] text-slate-900 font-bold ml-1">/ <?php echo $TOTAL_ANNUAL; ?></span>
                                 </td>
                                 <td class="px-8 py-5 text-center">
-                                    <span class="text-sm font-black <?php echo $casual_rem <= 1 ? 'text-rose-500' : 'text-slate-800'; ?>"><?php echo $casual_rem; ?></span>
+                                    <span class="text-sm font-black <?php echo $casual_rem <= 1 ? 'text-rose-500' : 'text-slate-800'; ?>"><?php echo formatDays($casual_rem); ?></span>
                                     <span class="text-[11px] text-slate-900 font-bold ml-1">/ <?php echo $TOTAL_CASUAL; ?></span>
                                 </td>
                                 <td class="px-8 py-5 text-center">
-                                    <span class="text-sm font-black <?php echo $casual_rem <= 1 ? 'text-rose-500' : 'text-slate-800'; ?>"><?php echo $casual_rem; ?></span>
+                                    <span class="text-sm font-black <?php echo $casual_rem <= 1 ? 'text-rose-500' : 'text-slate-800'; ?>"><?php echo formatDays($casual_rem); ?></span>
                                     <span class="text-[11px] text-slate-900 font-bold ml-1">/ <?php echo $TOTAL_CASUAL; ?></span>
                                 </td>
                                 <td class="px-8 py-5 text-center">
@@ -209,7 +232,7 @@ ksort($dept_groups);
                                         if ($row['status'] == 'On Leave') $statusClass = 'bg-amber-100 text-amber-700 border-amber-200';
                                     ?>
                                     <span class="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border <?php echo $statusClass; ?>">
-                                        <?php echo $row['status']; ?>
+                                        <?php echo ($row['status'] == 'Inactive') ? 'Deactivate' : $row['status']; ?>
                                     </span>
                                 </td>
                             </tr>

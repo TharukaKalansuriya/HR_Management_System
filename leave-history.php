@@ -1,5 +1,10 @@
-<?php 
-if (session_status() === PHP_SESSION_NONE) { session_start(); }
+<?php
+if (session_status() === PHP_SESSION_NONE) {
+    ini_set('session.cookie_lifetime', 2592000);
+    ini_set('session.gc_maxlifetime', 2592000);
+    session_set_cookie_params(2592000, '/');
+    session_start();
+}
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
     die;
@@ -18,7 +23,9 @@ if ($status_filter !== 'all') {
     $query = "SELECT * FROM leaves WHERE user_id = '$user_id' AND status = '$safe_filter'";
 } else {
     // By default, history shows finalized leaves, but for HR Managers we include HR_Approved (which is their Pending state)
-    if (stripos($_SESSION['position'] ?? '', 'HR Manager') !== false) {
+    if (stripos($_SESSION['position'] ?? '', 'Supervisor') !== false) {
+        $query = "SELECT * FROM leaves WHERE user_id = '$user_id' AND (status = 'Recommended' OR status = 'HR_Approved' OR status = 'Approved' OR status = 'Rejected')";
+    } elseif (stripos($_SESSION['position'] ?? '', 'HR Manager') !== false) {
         $query = "SELECT * FROM leaves WHERE user_id = '$user_id' AND (status = 'Approved' OR status = 'Rejected' OR status = 'HR_Approved')";
     } else {
         $query = "SELECT * FROM leaves WHERE user_id = '$user_id' AND (status = 'Approved' OR status = 'Rejected')";
@@ -43,13 +50,29 @@ function getLeaveTypeDisplay($type) {
 // Helper function for status display
 function getStatusDisplay($status) {
     $status_lower = strtolower($status);
+    $user_position = $_SESSION['position'] ?? '';
+    
+    if (stripos($user_position, 'Supervisor') !== false) {
+        if ($status_lower == 'recommended') {
+            return '<span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 border border-amber-200">
+                        <span class="w-1.5 h-1.5 bg-amber-500 rounded-full mr-2"></span>
+                        Pending
+                    </span>';
+        } elseif ($status_lower == 'hr_approved') {
+            return '<span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-blue-700 border border-blue-200">
+                        <span class="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2"></span>
+                        HR Approved
+                    </span>';
+        }
+    }
+
     if ($status_lower == 'approved') {
         return '<span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700 border border-emerald-200">
                     <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-2"></span>
                     Approved
                 </span>';
     } elseif ($status_lower == 'hr_approved') {
-        if (stripos($_SESSION['position'] ?? '', 'HR Manager') !== false) {
+        if (stripos($user_position, 'HR Manager') !== false) {
             return '<span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 border border-amber-200">
                         <span class="w-1.5 h-1.5 bg-amber-500 rounded-full mr-2"></span>
                         Pending

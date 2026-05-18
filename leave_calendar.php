@@ -1,9 +1,13 @@
 <?php
 // Fetch all approved leaves for calendar
-$cal_query = "SELECT l.start_date, l.end_date, l.leave_type, l.days, e.first_name, e.last_name, e.department 
+$cal_query = "SELECT l.start_date, l.end_date, l.leave_type, l.days, e.first_name, e.last_name, e.department, e.position 
               FROM leaves l 
               JOIN employees e ON l.user_id = e.id 
-              WHERE l.status IN ('HR_Approved', 'Approved')";
+              WHERE (
+                  (e.position LIKE '%Supervisor%' AND l.status = 'Approved') OR
+                  (e.position LIKE '%HR Manager%' AND l.status = 'Approved') OR
+                  (e.position NOT LIKE '%Supervisor%' AND e.position NOT LIKE '%HR Manager%' AND l.status IN ('HR_Approved', 'Approved'))
+              )";
 
 if (isset($_SESSION['admin_role']) && $_SESSION['admin_role'] === 'supervisor') {
     $dept = mysqli_real_escape_string($conn, $_SESSION['admin_dept'] ?? '');
